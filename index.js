@@ -26,7 +26,7 @@ app.use(express.json());
 
 // MongoDB Connection (hardcoded for now)
 
-const MongoDB_URI = process.env.MongodbUrl;
+const MongoDB_URI = process.env._M_B_DB;
 
 mongoose
   .connect(MongoDB_URI)
