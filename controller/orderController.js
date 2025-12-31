@@ -6,6 +6,8 @@ export async function getQote(req, res) {
   try {
     const newOrderData = req.body;
 
+    console.log(newOrderData)
+
     let labelTotal = 0; // Original Price
     let total = 0; // Final Price after discount
 

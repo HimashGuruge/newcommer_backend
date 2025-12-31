@@ -1,19 +1,13 @@
 import express from "express";
-import { getMessages, sendMessages } from "../controller/messageController.js";
+import { getUserMessages, sendUserMessage } from "../controller/messageController.js";
 import authMiddleware from "../middleware.js";
-
-
-
 
 const router = express.Router();
 
-router.post("/sendMessages", authMiddleware, sendMessages);
-router.get("/getMessages", authMiddleware, getMessages);
+// Send user message + AI reply
+router.post("/sendmessage", authMiddleware, sendUserMessage);
 
-
-
-
-
-
+// Get all messages for logged-in user
+router.get("/getmessages", authMiddleware, getUserMessages);
 
 export default router;

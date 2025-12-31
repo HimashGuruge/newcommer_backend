@@ -9,13 +9,11 @@ import orderRouter from "./routes/orderRouter.js";
 
 import dotenv from "dotenv";
 
-import messagesRouter from "./routes/messageRouter.js";
-
-import AireplyRouter from "./routes/aiReplyRouter.js";
-
 import addressRouter from "./routes/addressRouter.js";
 
-import notificationRouter from "./routes/notificationRouter.js";
+import paymentRouter from "./routes/paymentRouter.js";
+
+import messageRouter from "./routes/messageRouter.js";
 
 const app = express();
 dotenv.config();
@@ -41,11 +39,9 @@ app.use("/api/orders", orderRouter);
 
 app.use("/api/addresses", addressRouter);
 
-app.use("/api/messages", messagesRouter);
+app.use("/api/payment", paymentRouter);
 
-app.use("/api/admin", AireplyRouter);
-
-app.use("/api/notifications", notificationRouter);
+app.use("/api/messages", messageRouter);
 
 // Start Server
 const PORT = 4000;
