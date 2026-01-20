@@ -4,10 +4,9 @@ import axios from "axios";
 
 // SIM.AI Config
 const SIM_API_KEY = "sk-sim-1hKrpaWkFkH8TTfxd80FNenD5ojZz7GI";
-const SIM_WORKFLOW_URL =
-  "https://www.sim.ai/api/workflows/6f0cb809-a0cd-46e9-bad6-ca662c83af26/execute";
+const SIM_WORKFLOW_URL = "https://www.sim.ai/api/workflows/6f0cb809-a0cd-46e9-bad6-ca662c83af26/execute";
 
-// Utility to get AI reply
+// AI එකෙන් පිළිතුරක් ලබාගන්නා Function එක
 const getAIReply = async (userText) => {
   try {
     const response = await axios.post(
@@ -23,21 +22,17 @@ const getAIReply = async (userText) => {
 
     let aiReply = "No response from AI.";
     if (response.data?.output) {
-      if (typeof response.data.output === "string")
-        aiReply = response.data.output;
-      else if (response.data.output.content)
-        aiReply = response.data.output.content;
+      aiReply = typeof response.data.output === "string" ? response.data.output : response.data.output.content;
     } else if (response.data?.message) aiReply = response.data.message;
-    else if (response.data?.result) aiReply = response.data.result;
-
+    
     return aiReply;
   } catch (error) {
-    console.error("SIM.AI Error:", error.response?.data || error.message);
+    console.error("SIM.AI Error:", error.message);
     return "AI failed to respond.";
   }
 };
 
-// Send user message + AI reply
+// මැසේජ් එකක් යැවීම
 export const sendUserMessage = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -45,63 +40,84 @@ export const sendUserMessage = async (req, res) => {
 
     if (!message) return res.status(400).json({ error: "Message is required" });
 
-    // Special @admin case
+    // 1️⃣ @admin case (Admin ට මැසේජ් එකක් යන විට)
     if (message.includes("@admin")) {
-      const adminMsg = await userToAdminMessage.create({ userId, message });
-      // Immediate pseudo reply for user
+      await userToAdminMessage.findOneAndUpdate(
+        { userId },
+        { $push: { messages: { sender: "user", text: message } } },
+        { upsert: true }
+      );
+
       return res.status(201).json({
-        messages: [`user: ${message}`, `ai: Admin will reply soon`],
-        adminMsg,
+        messages: [
+          { sender: "user", text: message, createdAt: new Date() },
+          { sender: "ai", text: "Admin will reply soon", createdAt: new Date() },
+        ],
       });
     }
 
-    // Normal user message
-    const formattedUserMessage = `user: ${message}`;
+    // 2️⃣ Normal AI Chat (අලුත් Schema එකට අනුව)
     let chat = await userMessage.findOne({ userId });
+
+    // User ගේ මැසේජ් එක Object එකක් විදිහට හදනවා
+    const userMsgObj = { sender: "user", text: message };
 
     if (!chat) {
       chat = await userMessage.create({
         userId,
-        message: [formattedUserMessage],
+        messages: [userMsgObj], // ✅ Array of Objects
       });
     } else {
-      chat.message.push(formattedUserMessage);
+      chat.messages.push(userMsgObj);
       await chat.save();
     }
 
-    // Get AI reply
+    // AI පිළිතුර ලබා ගැනීම
     const aiReply = await getAIReply(message);
-    const formattedAIReply = `ai: ${aiReply}`;
+    const aiMsgObj = { sender: "ai", text: aiReply };
 
-    // Save AI reply in the same chat
-    chat.message.push(formattedAIReply);
+    // AI පිළිතුරත් push කරනවා
+    chat.messages.push(aiMsgObj);
     await chat.save();
 
-    // Return full conversation
-    res.status(201).json({ messages: chat.message });
+    // Frontend එකට මුළු message array එකම යවනවා
+    res.status(201).json({ messages: chat.messages });
+
   } catch (error) {
     console.error("Send message error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// Get all messages by userId
+// පරණ මැසේජ් සියල්ල ලබා ගැනීම
 export const getUserMessages = async (req, res) => {
   try {
     const userId = req.user.id;
     const chat = await userMessage.findOne({ userId });
 
-    if (!chat) return res.status(404).json({ messages: [] });
+    if (!chat) return res.status(200).json({ messages: [] });
 
-    res.status(200).json({ messages: chat.message }); // return full conversation array
+    // ✅ දැන් මෙතන map කරන්න ඕන නෑ, Database එකේ දැනටමත් තියෙන්නේ Objects
+    res.status(200).json({ messages: chat.messages });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 };
 
+// Admin ගේ පිළිතුරු ලබා ගැනීම
+export const getAdminReplies = async (req, res) => {
 
+    
+  try {
+    const userId = req.user.id;
+  
+    const chat = await userToAdminMessage.findOne({ userId });
 
+    if (!chat || !chat.messages) return res.status(200).json({ messages: [] });
 
-
-
+    const adminMessages = chat.messages.filter((msg) => msg.sender === "admin");
+    res.status(200).json({ messages: adminMessages });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+};

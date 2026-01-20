@@ -1,46 +1,55 @@
 import Order from "../models/orders.js";
 import Product from "../models/products.js";
+import User from "../models/users.js";
 
 // Existing getQote function
 export async function getQote(req, res) {
   try {
     const newOrderData = req.body;
 
-    console.log(newOrderData)
+    // 1. Array එක තිබේදැයි පරීක්ෂා කිරීම (Safety Check)
+    if (
+      !newOrderData.orderedItems ||
+      !Array.isArray(newOrderData.orderedItems)
+    ) {
+      return res
+        .status(400)
+        .json({ message: "orderedItems array is required" });
+    }
 
-    let labelTotal = 0; // Original Price
-    let total = 0; // Final Price after discount
-
+    let labelTotal = 0;
+    let total = 0;
     const newProductArray = [];
 
     for (let i = 0; i < newOrderData.orderedItems.length; i++) {
       let productId = newOrderData.orderedItems[i].productId;
-      
-      const product = await Product.findOne({
-        productId: productId,
-      });
 
-      if (product == null) {
+      const product = await Product.findOne({ productId: productId });
+
+      if (!product) {
         return res.status(404).json({
           message: "product with id " + productId + " not found",
         });
       }
-      
-      // Check stock availability
+
       if (product.stock < newOrderData.orderedItems[i].qty) {
         return res.status(400).json({
-          message: `Insufficient stock for ${product.productName}. Only ${product.stock} available.`
+          message: `Insufficient stock for ${product.productName}.`,
         });
       }
-      
+
+      // වැදගත්: මෙතැන field names හරියටම database එකට සමාන විය යුතුයි
       labelTotal += newOrderData.orderedItems[i].qty * product.price;
-      total += newOrderData.orderedItems[i].qty * product.lastPrices;
+
+      // මෙතන 'lastPrices' ද නැත්නම් 'lastPrice' ද කියලා schema එක බලන්න
+      const unitPrice = product.lastPrice || product.price;
+      total += newOrderData.orderedItems[i].qty * unitPrice;
 
       newProductArray.push({
         productId: productId,
         productName: product.productName,
         price: product.price,
-        lastPrice: product.lastPrices,
+        lastPrice: unitPrice, // schema එකට අනුව වෙනස් කරන්න
         description: product.description,
         images: product.images,
         qty: newOrderData.orderedItems[i].qty,
@@ -57,140 +66,138 @@ export async function getQote(req, res) {
       message: "Quote data generated successfully",
     });
   } catch (error) {
-    console.error("Quote generation error:", error);
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 }
 
 // Create new order
-// Create new order
-export async function createOrder(req, res) {
-  try {
-    const userId = req.user.id;
-    const {
-      items,
-      shippingAddress,
-      paymentMethod = "card",
-      paymentStatus = "pending"
-    } = req.body;
+// export async function createOrder(req, res) {
+//   try {
+//     const userId = req.user.id;
+//     const {
+//       items,
+//       shippingAddress,
+//       paymentMethod = "card",
+//       paymentStatus = "pending"
+//     } = req.body;
 
-    // Validate required fields
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "Order items are required" });
-    }
+//     // Validate required fields
+//     if (!items || !Array.isArray(items) || items.length === 0) {
+//       return res.status(400).json({ message: "Order items are required" });
+//     }
 
-    if (
-      !shippingAddress ||
-      !shippingAddress.name ||
-      !shippingAddress.addressLine1 ||
-      !shippingAddress.city ||
-      !shippingAddress.province ||
-      !shippingAddress.postalCode
-    ) {
-      return res.status(400).json({ message: "Shipping address is incomplete" });
-    }
+//     if (
+//       !shippingAddress ||
+//       !shippingAddress.name ||
+//       !shippingAddress.addressLine1 ||
+//       !shippingAddress.city ||
+//       !shippingAddress.province ||
+//       !shippingAddress.postalCode
+//     ) {
+//       return res.status(400).json({ message: "Shipping address is incomplete" });
+//     }
 
-    // Calculate order totals and validate stock
-    let subtotal = 0;
-    let discount = 0;
-    const orderItems = [];
+//     // Calculate order totals and validate stock
+//     let subtotal = 0;
+//     let discount = 0;
+//     const orderItems = [];
 
-    for (const item of items) {
-      const product = await Product.findOne({ productId: item.productId });
-      
-      if (!product) {
-        return res.status(404).json({ 
-          message: `Product ${item.productId} not found` 
-        });
-      }
+//     for (const item of items) {
+//       const product = await Product.findOne({ productId: item.productId });
 
-      if (product.stock < item.qty) {
-        return res.status(400).json({ 
-          message: `Insufficient stock for ${product.productName}. Available: ${product.stock}, Requested: ${item.qty}` 
-        });
-      }
+//       if (!product) {
+//         return res.status(404).json({
+//           message: `Product ${item.productId} not found`
+//         });
+//       }
 
-      const itemPrice = item.lastPrice || product.lastPrices;
-      const itemTotal = itemPrice * item.qty;
-      const originalPrice = product.price * item.qty;
-      
-      subtotal += itemTotal;
-      discount += (originalPrice - itemTotal);
+//       if (product.stock < item.qty) {
+//         return res.status(400).json({
+//           message: `Insufficient stock for ${product.productName}. Available: ${product.stock}, Requested: ${item.qty}`
+//         });
+//       }
 
-      orderItems.push({
-        productId: product._id,
-        productName: product.productName,
-        image: product.images?.[0] || "",
-        qty: item.qty,
-        lastPrice: itemPrice
-      });
+//       const itemPrice = item.lastPrice || product.lastPrices;
+//       const itemTotal = itemPrice * item.qty;
+//       const originalPrice = product.price * item.qty;
 
-      // Update product stock
-      product.stock -= item.qty;
-      await product.save();
-    }
+//       subtotal += itemTotal;
+//       discount += (originalPrice - itemTotal);
 
-    const shippingFee = 0; // You can add shipping fee logic here
-    const total = subtotal + shippingFee - (discount > 0 ? discount : 0);
+//       orderItems.push({
+//         productId: product._id,
+//         productName: product.productName,
+//         image: product.images?.[0] || "",
+//         qty: item.qty,
+//         lastPrice: itemPrice
+//       });
 
-    // Generate unique order ID
-    const orderId = `ORD-${Date.now().toString().slice(-8)}-${Math.floor(Math.random()*1000).toString().padStart(3, '0')}`;
+//       // Update product stock
+//       product.stock -= item.qty;
+//       await product.save();
+//     }
 
-    // Create new order
-    const newOrder = new Order({
-      userId,
-      orderId,
-      items: orderItems,
-      subtotal,
-      discount: discount > 0 ? discount : 0,
-      shippingFee,
-      total,
-      paymentStatus,
-      paymentMethod,
-      shippingAddress,
-      status: "processing"
-    });
+//     const shippingFee = 0; // You can add shipping fee logic here
+//     const total = subtotal + shippingFee - (discount > 0 ? discount : 0);
 
-    const savedOrder = await newOrder.save();
+//     // Generate unique order ID
+//     const orderId = `ORD-${Date.now().toString().slice(-8)}-${Math.floor(Math.random()*1000).toString().padStart(3, '0')}`;
 
-    res.status(201).json({
-      success: true,
-      message: "Order created successfully",
-      order: savedOrder
-    });
+//     // Create new order
+//     const newOrder = new Order({
+//       userId,
+//       orderId,
+//       items: orderItems,
+//       subtotal,
+//       discount: discount > 0 ? discount : 0,
+//       shippingFee,
+//       total,
+//       paymentStatus,
+//       paymentMethod,
+//       shippingAddress,
+//       status: "processing"
+//     });
 
-  } catch (error) {
-    console.error("Create order error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to create order", 
-      error: error.message 
-    });
-  }
-}
+//     const savedOrder = await newOrder.save();
 
+//     res.status(201).json({
+//       success: true,
+//       message: "Order created successfully",
+//       order: savedOrder
+//     });
+
+//   } catch (error) {
+//     console.error("Create order error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to create order",
+//       error: error.message
+//     });
+//   }
+// }
 
 // Get all orders for current user
 export async function getOrdersByUser(req, res) {
   try {
     const userId = req.user.id;
-    
-    const orders = await Order.find({ userId })
-      .sort({ createdAt: -1 })
-      .lean();
+
+    const orders = await Order.find({ userId }).sort({ createdAt: -1 }).lean();
+
+
 
     res.status(200).json({
       success: true,
       orders,
-      count: orders.length
+      count: orders.length,
     });
-
   } catch (error) {
     console.error("Get user orders error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch orders", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch orders",
+      error: error.message,
     });
   }
 }
@@ -204,23 +211,22 @@ export async function getOrderById(req, res) {
     const order = await Order.findOne({ orderId, userId }).lean();
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Order not found" 
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      order
+      order,
     });
-
   } catch (error) {
     console.error("Get order by ID error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch order", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch order",
+      error: error.message,
     });
   }
 }
@@ -234,23 +240,23 @@ export async function cancelOrder(req, res) {
     const order = await Order.findOne({ orderId, userId });
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Order not found" 
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
       });
     }
 
     // Check if order can be cancelled
     if (order.status === "delivered" || order.status === "cancelled") {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Order cannot be cancelled. Current status: ${order.status}` 
+      return res.status(400).json({
+        success: false,
+        message: `Order cannot be cancelled. Current status: ${order.status}`,
       });
     }
 
     // Update order status
     order.status = "cancelled";
-    
+
     // Restore product stock
     for (const item of order.items) {
       const product = await Product.findById(item.productId);
@@ -265,15 +271,14 @@ export async function cancelOrder(req, res) {
     res.status(200).json({
       success: true,
       message: "Order cancelled successfully",
-      order
+      order,
     });
-
   } catch (error) {
     console.error("Cancel order error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to cancel order", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Failed to cancel order",
+      error: error.message,
     });
   }
 }
@@ -283,26 +288,26 @@ export async function getAllOrders(req, res) {
   try {
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Access denied. Admin privileges required." 
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admin privileges required.",
       });
     }
 
-    const { 
-      status, 
-      paymentStatus, 
-      startDate, 
+    const {
+      status,
+      paymentStatus,
+      startDate,
       endDate,
       page = 1,
-      limit = 20
+      limit = 20,
     } = req.query;
 
     const filter = {};
-    
+
     if (status) filter.status = status;
     if (paymentStatus) filter.paymentStatus = paymentStatus;
-    
+
     // Date range filter
     if (startDate || endDate) {
       filter.createdAt = {};
@@ -313,7 +318,7 @@ export async function getAllOrders(req, res) {
     const skip = (page - 1) * limit;
 
     const orders = await Order.find(filter)
-      .populate('userId', 'name email phone')
+      .populate("userId", "name email phone")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -328,16 +333,15 @@ export async function getAllOrders(req, res) {
         page: parseInt(page),
         limit: parseInt(limit),
         totalPages: Math.ceil(totalOrders / limit),
-        totalOrders
-      }
+        totalOrders,
+      },
     });
-
   } catch (error) {
     console.error("Get all orders error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch orders", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch orders",
+      error: error.message,
     });
   }
 }
@@ -347,28 +351,31 @@ export async function updateOrderStatus(req, res) {
   try {
     // Check if user is admin
     if (req.user.role !== "admin") {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Access denied. Admin privileges required." 
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admin privileges required.",
       });
     }
 
     const { orderId } = req.params;
     const { status } = req.body;
 
-    if (!status || !["processing", "shipped", "delivered", "cancelled"].includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid status value" 
+    if (
+      !status ||
+      !["processing", "shipped", "delivered", "cancelled"].includes(status)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value",
       });
     }
 
     const order = await Order.findOne({ orderId });
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Order not found" 
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
       });
     }
 
@@ -378,38 +385,135 @@ export async function updateOrderStatus(req, res) {
     res.status(200).json({
       success: true,
       message: `Order status updated to ${status}`,
-      order
+      order,
     });
-
   } catch (error) {
     console.error("Update order status error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to update order status", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Failed to update order status",
+      error: error.message,
     });
   }
 }
 
+export const getAllUserOrdersForAdmin = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate("userId", "name email")
+      .sort({ createdAt: -1 });
 
 
 
+    res.status(200).json({
+      success: true,
+      orders,
+    });
+  } catch (error) {
+    console.error("Admin orders fetch error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch orders",
+    });
+  }
+};
 
+const ALLOWED_STATUSES = ["Pending", "Confirmed", "Delivered", "Cancelled"];
 
+export const AdminupdateOrderStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
 
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
 
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
 
+    // --- මෙන්න මේ කොටස තමයි අපි අලුතින් එකතු කරන්නේ ---
+    // Admin ස්ටේටස් එක මාරු කරනවා නම් පමණක් flag එක false කරන්න
+    if (order.status !== status) {
+      order.status = status;
+      // User ට රතු තිත පෙන්වන්න flag එක false කරනවා
+      order.isViewedByUser = false;
+    }
 
-export function payment(req, res) {
+    await order.save();
 
-  const user = req.user;
+    res.status(200).json({
+      message: `Order status updated to ${status}`,
+      order,
+    });
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ message: "Status update failed" });
+  }
+};
 
-  const order = req.body;
+// මේක ඔයාගේ controller file එකේ ලියන්න
+export const markOrdersAsSeen = async (req, res) => {
+  try {
+    // req.user.id එන්නේ verifyToken middleware එකෙන්
+    const userId = req.user.id;
 
+    const result = await Order.updateMany(
+      { userId: userId, isViewedByUser: false },
+      { $set: { isViewedByUser: true } }
+    );
 
+    res.status(200).json({
+      success: true,
+      message: "Orders marked as seen successfully",
+      modifiedCount: result.modifiedCount, // කීයක් update වුණාද කියලා බලාගන්න (optional)
+    });
+  } catch (error) {
+    console.error("Mark as seen error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error updating order visibility status",
+    });
+  }
+};
 
- 
+export async function getDashboardStats(req, res) {
+  try {
+    const [totalProducts, totalOrders, totalUsers] = await Promise.all([
+      Product.countDocuments(),
+      Order.countDocuments(),
+      User.countDocuments(),
+    ]);
 
+    // Schema එකේ තියෙන 'totalAmount' field එක මෙතන පාවිච්චි කළා
+    const revenueResult = await Order.aggregate([
+      {
+        $match: {
+          status: { $in: ["Confirmed", "Delivered"] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: "$totalAmount" }, // 👈 මෙතන "$totalAmount" විය යුතුයි
+        },
+      },
+    ]);
 
- 
+    const totalRevenue = revenueResult[0]?.revenue || 0;
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalProducts,
+        totalOrders,
+        totalRevenue, // මේක දැන් අංකයක් විදිහට යන්නේ
+        newUsers: totalUsers,
+      },
+    });
+  } catch (error) {
+    console.error("Dashboard Stats Error:", error);
+    res.status(500).json({ success: false, message: "Error fetching stats" });
+  }
 }

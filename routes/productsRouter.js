@@ -13,7 +13,7 @@ const router = express.Router();
 router.post("/", adminOnly, addproduct);
 router.get("/", getAllProducts);
 router.get("/:productId", productFindById);
-router.patch("/:productId", adminOnly, updateProduct);
+router.patch("/", adminOnly, updateProduct);
 router.delete("/:productId", adminOnly, deleteProduct);
 
 export default router;

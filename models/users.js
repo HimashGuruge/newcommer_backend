@@ -2,63 +2,27 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    // Name fields
-    name: {
-      type: String,
-      required: [true, "First name is required"],
-      trim: true,
-    },
-    lastname: {
-      type: String,
-      required: [true, "Last name is required"],
-      trim: true,
-    },
-    
-    // Contact info
-    email: {
-      type: String,
-      required: [true, "Email is required"],
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-    phone: {  // ✅ ADD THIS FIELD
-      type: String,
-      trim: true,
-      default: "",
-    },
-    
-    // Address (optional - for basic storage)
-    address: {  // ✅ Make this optional since we have separate Address model
-      type: String,
-      trim: true,
-      default: "",
-    },
-    
-    // Authentication
+    name: { type: String, required: [true, "First name is required"], trim: true },
+    lastname: { type: String, required: false, trim: true, default: "" },
+    email: { type: String, required: [true, "Email is required"], unique: true, lowercase: true, trim: true },
+    phone: { type: String, trim: true, default: "No phone Number" },
+    address: { type: String, trim: true, default: "No address" },
     password: {
       type: String,
-      required: [true, "Password is required"],
-      minlength: 6,
+      required: function() { return !this.googleId; },
+      minlength: [6, "Password must be at least 6 characters"],
     },
+    googleId: { type: String, unique: true, sparse: true },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+    profileImage: { type: String, default: "https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg" },
     
-    // Role
-    role: {
-      type: String,
-      enum: ["user", "admin"],
-      default: "user",
-    },
-    
-    // Profile
-    profileImage: {
-      type: String,
-      default: "https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg",
-    },
+    // --- මෙන්න මේ පේළි දෙක අනිවාර්යයෙන්ම තිබිය යුතුයි ---
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date }
+    // -----------------------------------------------
   },
   { timestamps: true }
 );
-
-
 
 const User = mongoose.model("User", userSchema);
 export default User;

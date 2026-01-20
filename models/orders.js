@@ -2,12 +2,8 @@ import mongoose from "mongoose";
 
 const orderItemSchema = new mongoose.Schema(
   {
-    orderId : {
-      type: String,
-      required: true,
-    },
     productId: {
-      type: String, // ObjectId වෙනුවට String ✅
+      type: String,
       required: true,
     },
     name: {
@@ -22,12 +18,22 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    imageUrl: {
+      type: String,
+      required: true,
+    },
   },
   { _id: false }
 );
 
 const orderSchema = new mongoose.Schema(
   {
+    orderId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -59,6 +65,12 @@ const orderSchema = new mongoose.Schema(
       type: String,
       enum: ["Pending", "Confirmed", "Delivered", "Cancelled"],
       default: "Pending",
+    },
+
+    // --- පියවර 1: මේ කොටස අලුතින් එකතු කළා ---
+    isViewedByUser: {
+      type: Boolean,
+      default: true, // Order එක දාපු වෙලාවට User ඒක දන්නා නිසා මුලින් true තබමු.
     },
   },
   { timestamps: true }

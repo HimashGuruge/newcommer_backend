@@ -54,31 +54,38 @@ export async function getAllProducts(req, res) {
 
 export async function updateProduct(req, res) {
   try {
-    const { productId } = req.params;
-    const updateData = { ...req.body };
+    // 1. Body එකෙන් productId සහ අනෙකුත් දත්ත වෙන් කර ලබා ගැනීම
+    const { productId, ...updateData } = req.body;
 
-    // Validate status if provided
-    if (
-      updateData.status &&
-      !["pending", "ready", "delivered"].includes(updateData.status)
-    ) {
-      return res.status(400).json({ message: "Invalid status value" });
+    // productId එක නැත්නම් error එකක් දීම
+    if (!productId) {
+      return res.status(400).json({ message: "Product ID is required in body" });
     }
 
+    // 2. MongoDB එකේ 'productId' කියන field එකෙන් සොයා update කිරීම
+    // ඔබේ Schema එකේ තියෙන්නේ 'productId' නම් පහත ආකාරයට ලියන්න
     const updatedProduct = await Product.findOneAndUpdate(
-      { productId },
-      updateData,
-      { new: true }
+      { productId: productId }, // Search filter
+      { $set: updateData },      // Update කරන දත්ත
+      { new: true, runValidators: true } 
     );
 
+    // 3. භාණ්ඩය සොයාගත නොහැකි නම්
     if (!updatedProduct) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({ message: "Product not found with this ID" });
     }
 
+    // සාර්ථක ප්‍රතිඵලය
     return res.status(200).json(updatedProduct);
+
   } catch (error) {
     console.error("Product update error:", error);
-    return res.status(500).json({ message: "Server error" });
+    
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
+    
+    return res.status(500).json({ message: "Internal Server error" });
   }
 }
 

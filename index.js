@@ -14,6 +14,9 @@ import addressRouter from "./routes/addressRouter.js";
 import paymentRouter from "./routes/paymentRouter.js";
 
 import messageRouter from "./routes/messageRouter.js";
+import notificationRouter from "./routes/notificationRouter.js";
+
+import adsRouter from "./routes/adRoutes.js";
 
 const app = express();
 dotenv.config();
@@ -21,6 +24,13 @@ dotenv.config();
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp"); // මෙයද අවශ්‍ය විය හැක
+  next();
+});
 
 // MongoDB Connection (hardcoded for now)
 
@@ -33,6 +43,8 @@ mongoose
 
 // API Routes
 app.use("/api/users", userRouter);
+
+
 app.use("/api/products", productRouter);
 
 app.use("/api/orders", orderRouter);
@@ -42,6 +54,13 @@ app.use("/api/addresses", addressRouter);
 app.use("/api/payment", paymentRouter);
 
 app.use("/api/messages", messageRouter);
+
+app.use("/api/notifications", notificationRouter);
+
+
+app.use("/api/ads", adsRouter);
+
+
 
 // Start Server
 const PORT = 4000;
