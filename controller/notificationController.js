@@ -3,24 +3,30 @@ import Message from "../models/userMessage.js"; // 👈 අලුත් Unified 
 // 1. Admin හට ලැබෙන notifications (සියලුම users ලාගෙන් ලැබුණු මැසේජ්)
 export const getAdminNotifications = async (req, res) => {
   try {
-    // needsAdminAttention: true ඇති හෝ Admin රිප්ලයි කළ යුතු සියලුම chats ලබා ගැනීම
-    const allChats = await Message.find().sort({ updatedAt: -1 });
+    // 1. .populate භාවිතා කර User model එකෙන් image එක සහ නම ලබාගන්න
+    // මෙහි "userId" යනු Message Schema එකේ ඔබ User model එකට ref කර ඇති නමයි.
+    const allChats = await Message.find()
+      .populate("userId", "name profileImage") 
+      .sort({ updatedAt: -1 });
     
     const notifications = allChats.map(doc => {
-      // චැට් එකේ අවසන් පණිවිඩය ලබා ගැනීම
       const lastMsg = doc.messages[doc.messages.length - 1];
+      
       return {
         _id: doc._id,
-        userId: doc.userId,
+        userId: doc.userId?._id || doc.userId, // userId එක object එකක් ලෙස ලැබෙන බැවිනි
+        userName: doc.userId?.name || "Unknown User", // පරිශීලක නම
+        userImage: doc.userId?.profileImage || null, // පරිශීලක රූපය (Image URL)
         message: lastMsg ? lastMsg.text : "No messages yet",
-        // මෙහි isRead එක පාවිච්චි කරන්නේ Admin මැසේජ් එක කියෙව්වාදැයි බැලීමටයි
         isRead: doc.isRead || false, 
+        updatedAt: doc.updatedAt, // Frontend එකේ sorting වලට වැදගත් වේ
         sentAt: lastMsg ? lastMsg.createdAt : doc.updatedAt
       };
     });
 
     res.status(200).json(notifications);
   } catch (error) {
+    console.error("Fetch Notifications Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
