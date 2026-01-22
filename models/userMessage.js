@@ -17,7 +17,7 @@ const singleMessageSchema = new mongoose.Schema(
       default: Date.now, // ✅ මෙන්න අපි හොයපු Timestamp එක!
     },
   },
-  { _id: false } // Sub-document වලට අමුතුවෙන් ID ඕන නෑ (Database එක cleanව තියාගන්න)
+  { _id: true } // Sub-document වලට අමුතුවෙන් ID ඕන නෑ (Database එක cleanව තියාගන්න)
 );
 
 // 2️⃣ Main Schema එක

@@ -1,5 +1,4 @@
-import userMessage from "../models/userMessage.js";
-import userToAdminMessage from "../models/userToAdminMessage.js";
+import Message from "../models/userMessage.js"; // 👈 අනිවාර්යයෙන්ම මෙය පාවිච්චි කරන්න
 import axios from "axios";
 
 // SIM.AI Config
@@ -32,7 +31,9 @@ const getAIReply = async (userText) => {
   }
 };
 
-// මැසේජ් එකක් යැවීම
+/**
+ * 1. මැසේජ් එකක් යැවීම (User & AI/Admin logic)
+ */
 export const sendUserMessage = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -40,84 +41,58 @@ export const sendUserMessage = async (req, res) => {
 
     if (!message) return res.status(400).json({ error: "Message is required" });
 
-    // 1️⃣ @admin case (Admin ට මැසේජ් එකක් යන විට)
-    if (message.includes("@admin")) {
-      await userToAdminMessage.findOneAndUpdate(
-        { userId },
-        { $push: { messages: { sender: "user", text: message } } },
-        { upsert: true }
-      );
-
-      return res.status(201).json({
-        messages: [
-          { sender: "user", text: message, createdAt: new Date() },
-          { sender: "ai", text: "Admin will reply soon", createdAt: new Date() },
-        ],
-      });
-    }
-
-    // 2️⃣ Normal AI Chat (අලුත් Schema එකට අනුව)
-    let chat = await userMessage.findOne({ userId });
-
-    // User ගේ මැසේජ් එක Object එකක් විදිහට හදනවා
-    const userMsgObj = { sender: "user", text: message };
+    // එකම Unified Model එකෙන් Chat එක සොයා ගැනීම
+    let chat = await Message.findOne({ userId });
 
     if (!chat) {
-      chat = await userMessage.create({
-        userId,
-        messages: [userMsgObj], // ✅ Array of Objects
-      });
-    } else {
-      chat.messages.push(userMsgObj);
-      await chat.save();
+      chat = new Message({ userId, messages: [] });
     }
 
-    // AI පිළිතුර ලබා ගැනීම
-    const aiReply = await getAIReply(message);
-    const aiMsgObj = { sender: "ai", text: aiReply };
+    // User ගේ පණිවිඩය ඇතුළු කිරීම
+    chat.messages.push({ sender: "user", text: message });
 
-    // AI පිළිතුරත් push කරනවා
-    chat.messages.push(aiMsgObj);
-    await chat.save();
+    // Logic: Admin ට ද නැද්ද යන්න පරීක්ෂාව
+    if (message.includes("@admin")) {
+      chat.isRead = false; 
+      chat.messages.push({
+        sender: "ai",
+        text: "I've notified our support team. An admin will get back to you soon.",
+      });
+    } else {
+      const aiReply = await getAIReply(message); 
+      chat.messages.push({ sender: "ai", text: aiReply });
+    }
 
-    // Frontend එකට මුළු message array එකම යවනවා
-    res.status(201).json({ messages: chat.messages });
+    const savedChat = await chat.save();
+
+    // සම්පූර්ණ පණිවිඩ ලැයිස්තුවම ආපසු යැවීම
+    res.status(201).json({ 
+      success: true,
+      messages: savedChat.messages 
+    });
 
   } catch (error) {
     console.error("Send message error:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-// පරණ මැසේජ් සියල්ල ලබා ගැනීම
+/**
+ * 2. පරිශීලකයාගේ සියලුම පණිවිඩ ලබා ගැනීම
+ */
 export const getUserMessages = async (req, res) => {
   try {
     const userId = req.user.id;
-    const chat = await userMessage.findOne({ userId });
+    // මෙතනත් අලුත් Message model එකම පාවිච්චි කළ යුතුය
+    const chat = await Message.findOne({ userId });
 
     if (!chat) return res.status(200).json({ messages: [] });
 
-    // ✅ දැන් මෙතන map කරන්න ඕන නෑ, Database එකේ දැනටමත් තියෙන්නේ Objects
     res.status(200).json({ messages: chat.messages });
   } catch (error) {
+    console.error("Fetch messages error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-// Admin ගේ පිළිතුරු ලබා ගැනීම
-export const getAdminReplies = async (req, res) => {
 
-    
-  try {
-    const userId = req.user.id;
-  
-    const chat = await userToAdminMessage.findOne({ userId });
-
-    if (!chat || !chat.messages) return res.status(200).json({ messages: [] });
-
-    const adminMessages = chat.messages.filter((msg) => msg.sender === "admin");
-    res.status(200).json({ messages: adminMessages });
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
-  }
-};

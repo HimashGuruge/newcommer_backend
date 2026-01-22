@@ -1,5 +1,5 @@
 import express from "express";
-import { getAdminNotifications, getFullChatHistory, markNotificationAsRead, replyToUserNotification,  } from "../controller/notificationController.js";
+import { getAdminNotifications, getFullChatHistory, replyToUserNotification,  } from "../controller/notificationController.js";
 
 const router = express.Router();
 
@@ -10,6 +10,6 @@ router.get("/getNotifications", getAdminNotifications);
 router.post("/reply/:userId", replyToUserNotification);
 router.get("/getChat/:userId", getFullChatHistory);
 
-router.post("/markRead", markNotificationAsRead);
+
 
 export default router;
