@@ -25,6 +25,7 @@ router.post("/quote", getQote);
 //router.post("/", authMiddleware, createOrder); // Create new order
 router.get("/my-orders", authMiddleware, getOrdersByUser); // Get user's orders
 router.get("/stats", authMiddleware, getDashboardStats);
+router.put("/mark-seen", authMiddleware, markOrdersAsSeen);
 router.get("/:orderId", authMiddleware, getOrderById); // Get specific order
 router.put("/:orderId/cancel", authMiddleware, cancelOrder); // Cancel order
 router.get("/my-orders", authMiddleware, getOrdersByUser);
@@ -42,7 +43,7 @@ router.get("/userplace/orders", authMiddleware, getAllUserOrdersForAdmin);
 router.put("/admin/getplaceorders/:orderId", authMiddleware, AdminupdateOrderStatus);
 
 
-router.put("/mark-seen", authMiddleware, markOrdersAsSeen);
+
 
 
 

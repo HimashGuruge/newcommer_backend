@@ -1,15 +1,16 @@
 import express from "express";
-import { getAdminNotifications, getFullChatHistory, replyToUserNotification,  } from "../controller/notificationController.js";
+import { 
+  getAdminNotifications, 
+  getFullChatHistory, 
+  replyToUserNotification, 
+  markNotificationAsRead // 👈 අලුත් function එක
+} from "../controller/notificationController.js";
 
 const router = express.Router();
 
-// URL: /api/notifications/getNotifications
 router.get("/getNotifications", getAdminNotifications);
-
-// URL: /api/notifications/reply/:userId
+router.post("/markRead", markNotificationAsRead); // 👈 Notification එක කියවූ බව mark කිරීමට
 router.post("/reply/:userId", replyToUserNotification);
 router.get("/getChat/:userId", getFullChatHistory);
-
-
 
 export default router;

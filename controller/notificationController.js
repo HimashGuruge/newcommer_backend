@@ -3,28 +3,37 @@ import Message from "../models/userMessage.js"; // 👈 අලුත් Unified 
 // 1. Admin හට ලැබෙන notifications (සියලුම users ලාගෙන් ලැබුණු මැසේජ්)
 export const getAdminNotifications = async (req, res) => {
   try {
-    // 1. .populate භාවිතා කර User model එකෙන් image එක සහ නම ලබාගන්න
-    // මෙහි "userId" යනු Message Schema එකේ ඔබ User model එකට ref කර ඇති නමයි.
+    // 1. සියලුම chat threads ලබාගෙන User විස්තර populate කිරීම
     const allChats = await Message.find()
-      .populate("userId", "name profileImage") 
+      .populate("userId", "name profileImage")
       .sort({ updatedAt: -1 });
-    
-    const notifications = allChats.map(doc => {
-      const lastMsg = doc.messages[doc.messages.length - 1];
-      
-      return {
-        _id: doc._id,
-        userId: doc.userId?._id || doc.userId, // userId එක object එකක් ලෙස ලැබෙන බැවිනි
-        userName: doc.userId?.name || "Unknown User", // පරිශීලක නම
-        userImage: doc.userId?.profileImage || null, // පරිශීලක රූපය (Image URL)
-        message: lastMsg ? lastMsg.text : "No messages yet",
-        isRead: doc.isRead || false, 
-        updatedAt: doc.updatedAt, // Frontend එකේ sorting වලට වැදගත් වේ
-        sentAt: lastMsg ? lastMsg.createdAt : doc.updatedAt
-      };
+
+    let individualNotifications = [];
+
+    // 2. හැම thread එකකම තියෙන පණිවිඩ එකින් එක වෙන් කර ගැනීම
+    allChats.forEach(doc => {
+      doc.messages.forEach(msg => {
+        // අපි පෙන්වන්නේ User එවපු පණිවිඩ පමණක් නම්:
+        if (msg.sender === "user") {
+          individualNotifications.push({
+            _id: msg._id, // Message එකේ unique ID එක
+            userId: doc.userId?._id || doc.userId,
+            userName: doc.userId?.name || "Unknown User",
+            userImage: doc.userId?.profileImage || null,
+            message: msg.text, // මේ පේළියේ පෙන්වන මැසේජ් එක
+            isRead: msg.isRead || doc.isRead, 
+            sentAt: msg.createdAt,
+            // 👇 වැදගත්ම කොටස: මේ මැසේජ් එක අයිති මුළු conversation එකම මෙතනට දානවා
+            fullHistory: doc.messages 
+          });
+        }
+      });
     });
 
-    res.status(200).json(notifications);
+    // 3. අලුත්ම පණිවිඩය මුලට එන ලෙස Sort කිරීම
+    individualNotifications.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+
+    res.status(200).json(individualNotifications);
   } catch (error) {
     console.error("Fetch Notifications Error:", error);
     res.status(500).json({ error: error.message });
@@ -81,3 +90,42 @@ export const getFullChatHistory = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+
+
+
+export const markNotificationAsRead = async (req, res) => {
+  try {
+    const { userId } = req.body; // Frontend එකෙන් body එකේ එවන userId
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    // අදාළ userId එකට ඇති chat document එකේ isRead field එක true කිරීම
+    const updatedChat = await Message.findOneAndUpdate(
+      { userId: userId },
+      { $set: { isRead: true } },
+      { new: true }
+    );
+
+    if (!updatedChat) {
+      return res.status(404).json({ error: "Chat thread not found" });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Notification marked as read" 
+    });
+
+  } catch (error) {
+    console.error("Mark Read Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+
+
