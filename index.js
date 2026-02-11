@@ -17,6 +17,7 @@ import messageRouter from "./routes/messageRouter.js";
 import notificationRouter from "./routes/notificationRouter.js";
 
 import adsRouter from "./routes/adRoutes.js";
+import Category from "./routes/categoryRouter.js";
 
 const app = express();
 dotenv.config();
@@ -54,6 +55,8 @@ app.use("/api/addresses", addressRouter);
 app.use("/api/payment", paymentRouter);
 
 app.use("/api/messages", messageRouter);
+
+app.use("/api/categories", Category);
 
 app.use("/api/notifications", notificationRouter);
 

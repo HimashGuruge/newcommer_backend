@@ -123,3 +123,28 @@ export async function productFindById(req, res) {
     return res.status(500).json({ message: "Server error" });
   }
 }
+
+
+
+export const getProductsByCategory = async (req, res) => {
+  try {
+    // router.get("/category/:category") නිසා req.params පාවිච්චි කරයි
+    const { category } = req.params; 
+
+    console.log(category)
+
+    // Category එකට අදාළ දත්ත සෙවීම (Case-insensitive)
+    const products = await Product.find({
+      category: { $regex: new RegExp(`^${category}$`, 'i') }
+    });
+
+    // දත්ත ලැබුණත් නැතත් status 200 සමග array එක යැවීම සාර්ථක ක්‍රමයයි
+    res.status(200).json(products);
+
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Internal Server Error", 
+      error: error.message 
+    });
+  }
+};

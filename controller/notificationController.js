@@ -129,3 +129,25 @@ export const markNotificationAsRead = async (req, res) => {
 
 
 
+
+export const getUnreadCount = async (req, res) => {
+  try {
+    // 1. Message මොඩල් එක පාවිච්චි කරන්න (Notification නෙවෙයි)
+    // 2. ඔයාගේ unified model එකේ "isRead: false" පණිවිඩ සහිත chat threads ගණන සොයන්න
+    const count = await Message.countDocuments({ 
+      isRead: false 
+    });
+
+    res.status(200).json({
+      success: true,
+      count: count || 0 
+    });
+  } catch (error) {
+    console.error("Unread Count Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Notification ගණන ලබා ගැනීමේදී දෝෂයක් ඇති විය",
+      error: error.message
+    });
+  }
+};
