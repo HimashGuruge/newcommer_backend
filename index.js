@@ -45,7 +45,6 @@ mongoose
 // API Routes
 app.use("/api/users", userRouter);
 
-
 app.use("/api/products", productRouter);
 
 app.use("/api/orders", orderRouter);
@@ -60,10 +59,7 @@ app.use("/api/categories", Category);
 
 app.use("/api/notifications", notificationRouter);
 
-
 app.use("/api/ads", adsRouter);
-
-
 
 // Start Server
 const PORT = 4000;

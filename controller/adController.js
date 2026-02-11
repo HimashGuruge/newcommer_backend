@@ -1,27 +1,29 @@
-import Ad from "../models/ads.js"; // Ensure your model is imported
+import Ad from "../models/ads.js"; 
 
+// 🟢 1. Ad එකක් Create කිරීම (Admin Panel එකෙන්)
 export const createAd = async (req, res) => {
   try {
-    const { title, imageUrl } = req.body;
+    // category එකත් body එකෙන් ලබා ගන්නවා
+    const { title, imageUrl, category } = req.body;
 
-    // 1. Validation
+    // Validation
     if (!title || !imageUrl) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields: title and imageUrl are mandatory.",
+        message: "මාතෘකාව (title) සහ රූපය (imageUrl) අනිවාර්ය වේ.",
       });
     }
 
-    // 2. Create entry in MongoDB
+    // Database එකේ save කිරීම
     const ad = await Ad.create({
       title,
       imageUrl,
+      category: category || 'home', // category එකක් නැත්නම් 'home' ලෙස default සේව් වේ
     });
 
-    // 3. Success Response
     return res.status(201).json({
       success: true,
-      message: "Ad successfully published to database",
+      message: "Ad එක සාර්ථකව Database එකට ඇතුළත් කළා.",
       data: ad,
     });
   } catch (error) {
@@ -34,48 +36,55 @@ export const createAd = async (req, res) => {
   }
 };
 
-// සියලුම Ads ලබා ගැනීම (Frontend එකේ Slider එක සඳහා)
+// 🟢 2. Ads ලබා ගැනීම (Category අනුව Filter කිරීමේ හැකියාව සහිතව)
 export const getAds = async (req, res) => {
   try {
-    const ads = await Ad.find().sort({ createdAt: -1 }); // අලුත්ම ඒවා මුලට
+    const { category } = req.query; // URL එකේ ?category=mens-fashion වගේ එන query එක ගන්නවා
+    
+    let filter = {};
+    
+    // ඉදිරිපසින් (Frontend) category එකක් එවා ඇත්නම් පමණක් filter එකට එක් කරයි
+    if (category && category !== 'all') {
+      filter.category = category;
+    }
+
+    const ads = await Ad.find(filter).sort({ createdAt: -1 }); 
     res.status(200).json(ads);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching ads", error });
+    res.status(500).json({ message: "Ads ලබා ගැනීමට නොහැකි විය.", error });
   }
 };
 
-// 🟢 Ad එකක් මකා දැමීම
+// 🟢 3. Ad එකක් මකා දැමීම
 export const deleteAd = async (req, res) => {
   try {
     const { id } = req.params;
     const deletedAd = await Ad.findByIdAndDelete(id);
 
     if (!deletedAd) {
-      return res.status(404).json({ message: "Ad not found" });
+      return res.status(404).json({ message: "Ad එක හමු නොවීය." });
     }
 
-    res.status(200).json({ message: "Ad deleted successfully" });
+    res.status(200).json({ message: "Ad එක සාර්ථකව මකා දැමුවා." });
   } catch (error) {
     res.status(500).json({ message: "Error deleting ad", error });
   }
 };
 
-// 🟢 Ad එකක Status එක (Active/Inactive) වෙනස් කිරීම
+// 🟢 4. Ad එකක Status එක (Active/Inactive) වෙනස් කිරීම
 export const toggleAdStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const ad = await Ad.findById(id);
     if (!ad) return res.status(404).json({ message: "Ad not found" });
 
-    ad.isActive = !ad.isActive; // තිබෙන status එක මාරු කිරීම
+    ad.status = ad.status === 'active' ? 'paused' : 'active'; 
     await ad.save();
 
-    res
-      .status(200)
-      .json({
-        message: `Ad is now ${ad.isActive ? "Active" : "Inactive"}`,
-        ad,
-      });
+    res.status(200).json({
+      message: `Ad is now ${ad.status}`,
+      ad,
+    });
   } catch (error) {
     res.status(500).json({ message: "Status update failed", error });
   }
