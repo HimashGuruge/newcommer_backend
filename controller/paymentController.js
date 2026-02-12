@@ -12,26 +12,25 @@ const MERCHANT_SECRET = process.env.MERCHANT_SECRET;
 const updateProductStock = async (items) => {
   try {
     // එකම අවස්ථාවේ භාණ්ඩ කිහිපයක් update කිරීමට Promise.all භාවිතා කිරීම වඩා වේගවත් වේ
-    const updatePromises = items.map(item => 
+    const updatePromises = items.map((item) =>
       Product.findOneAndUpdate(
-        { 
-          productId: item.productId, 
-          stock: { $gte: item.qty } // ආරක්‍ෂිත පියවරක්: stock එක qty එකට වඩා වැඩි නම් පමණක් අඩු කරන්න
-        }, 
-        { $inc: { stock: -item.qty } }, 
-        { new: true }
-      )
+        {
+          productId: item.productId,
+          stock: { $gte: item.qty }, // ආරක්‍ෂිත පියවරක්: stock එක qty එකට වඩා වැඩි නම් පමණක් අඩු කරන්න
+        },
+        { $inc: { stock: -item.qty } },
+        { new: true },
+      ),
     );
 
     const results = await Promise.all(updatePromises);
 
     // යම් හෙයකින් එක් භාණ්ඩයක් හෝ update නොවූයේ නම් (Null ලැබුණොත්) එය දැනුම් දීම
     if (results.includes(null)) {
-      console.warn("සමහර භාණ්ඩවල තොග ප්‍රමාණවත් නොවීම නිසා update කිරීමට නොහැකි විය.");
+      console.warn("Update failed: Some items have insufficient stock.");
     } else {
-      console.log("සියලුම භාණ්ඩවල තොග සාර්ථකව යාවත්කාලීන විය.");
+      console.log("Success: All item stock levels have been updated.");
     }
-
   } catch (error) {
     console.error("Stock Update Error:", error.message);
     throw new Error("Stock update process failed."); // Controller එකට error එක pass කිරීම
@@ -47,18 +46,18 @@ export const placeCODOrder = async (req, res) => {
     // --- 1. STOCK VALIDATION (Stock තිබේදැයි කලින් පරීක්ෂා කිරීම) ---
     for (const item of orderedData.orderedItems) {
       const product = await Product.findOne({ productId: item.productId });
-      
+
       if (!product) {
-        return res.status(404).json({ 
-          success: false, 
-          message: `Product not found: ${item.productName}` 
+        return res.status(404).json({
+          success: false,
+          message: `Product not found: ${item.productName}`,
         });
       }
 
       if (product.stock < item.qty) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `සමාවන්න, ${item.productName} ප්‍රමාණවත් තරම් තොග නොමැත. (ඉතිරිව ඇත්තේ: ${product.stock})` 
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${item.productName}. (Available: ${product.stock})`,
         });
       }
     }
@@ -72,7 +71,8 @@ export const placeCODOrder = async (req, res) => {
       items: orderedData.orderedItems.map((item) => ({
         productId: item.productId,
         name: item.productName || item.name,
-        imageUrl: item.image || item.imageUrl || (item.images && item.images[0]),
+        imageUrl:
+          item.image || item.imageUrl || (item.images && item.images[0]),
         qty: item.qty,
         price: item.lastPrice || item.price,
       })),
@@ -105,7 +105,6 @@ export const placeCODOrder = async (req, res) => {
       message: "Order placed and stock updated successfully",
       order: savedOrder,
     });
-
   } catch (error) {
     console.error("COD Error:", error);
     res.status(500).json({
@@ -119,10 +118,13 @@ export const placeCODOrder = async (req, res) => {
 export const generatePayHereHash = async (req, res) => {
   try {
     const user = req.user;
-    const { amount, currency, orderedItems, shippingAddress, contactPhone } = req.body;
+    const { amount, currency, orderedItems, shippingAddress, contactPhone } =
+      req.body;
 
     if (!MERCHANT_ID || !MERCHANT_SECRET) {
-      return res.status(500).json({ success: false, message: "Server configuration error" });
+      return res
+        .status(500)
+        .json({ success: false, message: "Server configuration error" });
     }
 
     const formattedAmount = parseFloat(amount).toFixed(2);
@@ -132,11 +134,11 @@ export const generatePayHereHash = async (req, res) => {
     // Hash එක සෑදීම
     const hashedSecret = md5(String(MERCHANT_SECRET)).toUpperCase();
     const hash = md5(
-      String(MERCHANT_ID) + 
-      String(orderId) + 
-      String(formattedAmount) + 
-      String(selectedCurrency) + 
-      String(hashedSecret)
+      String(MERCHANT_ID) +
+        String(orderId) +
+        String(formattedAmount) +
+        String(selectedCurrency) +
+        String(hashedSecret),
     ).toUpperCase();
 
     // --- DATABASE එකේ ORDER එක SAVE කිරීම ---
@@ -171,9 +173,8 @@ export const generatePayHereHash = async (req, res) => {
       order_id: orderId,
       amount: formattedAmount,
       currency: selectedCurrency,
-      hash: hash
+      hash: hash,
     });
-
   } catch (err) {
     console.error("Hash Generation Error:", err.message);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -211,18 +212,22 @@ export const cancelOrder = async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const diffInMinutes = (new Date() - new Date(order.createdAt)) / (1000 * 60);
+    const diffInMinutes =
+      (new Date() - new Date(order.createdAt)) / (1000 * 60);
 
     if (diffInMinutes > 10) {
       return res.status(400).json({
         success: false,
-        message: "Time limit exceeded! You can only cancel orders within 10 minutes.",
+        message:
+          "Time limit exceeded! You can only cancel orders within 10 minutes.",
       });
     }
 
     order.status = "Cancelled";
     await order.save();
-    res.status(200).json({ success: true, message: "Order cancelled successfully" });
+    res
+      .status(200)
+      .json({ success: true, message: "Order cancelled successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

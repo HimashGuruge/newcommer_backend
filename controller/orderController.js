@@ -1,7 +1,7 @@
 import Order from "../models/orders.js";
 import Product from "../models/products.js";
 import User from "../models/users.js";
-
+import nodemailer from "nodemailer";
 // Existing getQote function
 export async function getQote(req, res) {
   try {
@@ -423,33 +423,107 @@ const ALLOWED_STATUSES = ["Pending", "Confirmed", "Delivered", "Cancelled"];
 export const AdminupdateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    const { orderId } = req.params;
 
+    // 1. වලංගු Status එකක්දැයි බැලීම
+    const ALLOWED_STATUSES = ["Pending", "Confirmed", "Delivered", "Cancelled"];
     if (!ALLOWED_STATUSES.includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
+      return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
-    const order = await Order.findById(req.params.orderId);
+    // 2. Order එක සොයාගෙන User විස්තර ලබා ගැනීම (Populate userId)
+    const order = await Order.findById(orderId).populate("userId", "email name");
     if (!order) {
-      return res.status(404).json({ message: "Order not found" });
+      return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // --- මෙන්න මේ කොටස තමයි අපි අලුතින් එකතු කරන්නේ ---
-    // Admin ස්ටේටස් එක මාරු කරනවා නම් පමණක් flag එක false කරන්න
+    // 3. Status එක වෙනස් වී ඇත්නම් පමණක් Update කිරීම
     if (order.status !== status) {
       order.status = status;
-      // User ට රතු තිත පෙන්වන්න flag එක false කරනවා
-      order.isViewedByUser = false;
+      order.isViewedByUser = false; // User ට notification පෙන්වීමට
+      await order.save();
+
+      // 4. Email එක යැවීමේ කොටස
+      if (order.userId && order.userId.email) {
+        // Status එක අනුව පාට තෝරා ගැනීම
+        const statusColors = {
+          Pending: "#f59e0b",
+          Confirmed: "#2563eb",
+          Delivered: "#10b981",
+          Cancelled: "#ef4444"
+        };
+        const activeColor = statusColors[status] || "#2563eb";
+
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: "himezguruge@gmail.com",
+            pass: "dajy csmv lcco whmt", // App Password
+          },
+        });
+
+        const mailOptions = {
+          to: order.userId.email,
+          subject: `Order Update: #${order._id.toString().slice(-6)} is now ${status}`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                .wrapper { font-family: 'Arial', sans-serif; background-color: #f4f7f6; padding: 20px; }
+                .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+                .header { background-color: ${activeColor}; color: white; padding: 30px; text-align: center; }
+                .body { padding: 40px; color: #333; line-height: 1.6; }
+                .status-badge { display: inline-block; padding: 8px 20px; background: ${activeColor}20; color: ${activeColor}; border-radius: 50px; font-weight: bold; text-transform: uppercase; font-size: 14px; margin: 15px 0; }
+                .footer { padding: 20px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #eee; }
+                .btn { display: inline-block; padding: 12px 25px; background: ${activeColor}; color: white !important; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px; }
+              </style>
+            </head>
+            <body>
+              <div class="wrapper">
+                <div class="container">
+                  <div class="header">
+                    <h1 style="margin:0; font-size: 24px;">Order Status Update</h1>
+                  </div>
+                  <div class="body">
+                    <p>Hi <b>${order.userId.name || "Valued Customer"}</b>,</p>
+                    <p>Your order <b>#${order._id.toString().slice(-6)}</b> has a new update.</p>
+                    
+                    <div style="text-align: center;">
+                      <div class="status-badge">${status}</div>
+                    </div>
+
+                    <p>We're moving things along! You can track your order status in real-time on your dashboard.</p>
+                    
+                    <div style="text-align: center;">
+                      <a href="${process.env.FRONTEND_URL}/my-orders" class="btn">View My Order</a>
+                    </div>
+                  </div>
+                  <div class="footer">
+                    <p>Thank you for shopping with us!</p>
+                    <p>&copy; ${new Date().getFullYear()} Your Brand Name</p>
+                  </div>
+                </div>
+              </div>
+            </body>
+            </html>
+          `,
+        };
+
+        // Email එක Background එකේ යවන්න (Response එක ප්‍රමාද නොවීමට)
+        transporter.sendMail(mailOptions).catch(err => console.error("Email Error: ", err));
+      }
     }
 
-    await order.save();
-
     res.status(200).json({
-      message: `Order status updated to ${status}`,
-      order,
+      success: true,
+      message: `Status updated to ${status}`,
+      order
     });
+
   } catch (error) {
     console.error("Update error:", error);
-    res.status(500).json({ message: "Status update failed" });
+    res.status(500).json({ success: false, message: "Status update failed" });
   }
 };
 

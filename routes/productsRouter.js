@@ -15,7 +15,7 @@ router.post("/", adminOnly, addproduct);
 router.get("/", getAllProducts);
 router.get("/category/:category", getProductsByCategory);
 router.get("/:productId", productFindById);
-router.patch("/", adminOnly, updateProduct);
+router.patch("/:productId", adminOnly, updateProduct);
 router.delete("/:productId", adminOnly, deleteProduct);
 
 export default router;

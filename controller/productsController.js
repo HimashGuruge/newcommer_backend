@@ -57,6 +57,8 @@ export async function updateProduct(req, res) {
     // 1. Body එකෙන් productId සහ අනෙකුත් දත්ත වෙන් කර ලබා ගැනීම
     const { productId, ...updateData } = req.body;
 
+    console.log(productId)
+
     // productId එක නැත්නම් error එකක් දීම
     if (!productId) {
       return res.status(400).json({ message: "Product ID is required in body" });
@@ -131,7 +133,7 @@ export const getProductsByCategory = async (req, res) => {
     // router.get("/category/:category") නිසා req.params පාවිච්චි කරයි
     const { category } = req.params; 
 
-    console.log(category)
+
 
     // Category එකට අදාළ දත්ත සෙවීම (Case-insensitive)
     const products = await Product.find({
